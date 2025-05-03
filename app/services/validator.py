@@ -1,0 +1,1 @@
+# Aquí irían validaciones personalizadas si se requieren.

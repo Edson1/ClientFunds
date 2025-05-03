@@ -1,0 +1,1 @@
+# Configuración de AWS (si fuera necesario colocar claves, se usarían variables de entorno)

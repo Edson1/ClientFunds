@@ -1,0 +1,27 @@
+version: "2"
+
+services:
+  my-app:
+    image: appimage
+    environment:
+            - MYSQLUSERNAME=root
+            - MYSQLPASSWORD=toor
+            - MYSQLADDRESS=mysql
+            - MYSQLHOST=mysql
+    build: c:/Users/User/Documents/ALLdocuments/2024VenonCSC/Repos/Orders
+    container_name: app_service
+    restart: always
+    #networks:
+     # cloud_network:
+      #  ipv4_address: 172.18.0.6
+    networks:
+      - cloud_network
+    ports:
+      - "5000:8000" #8000 is internal container port
+
+networks:
+  cloud_network:
+    driver: bridge
+    #external: true
+
+#docker network create cloud_network --subnet=172.18.0.0/16 --opt com.docker.network.driver.mtu=9216

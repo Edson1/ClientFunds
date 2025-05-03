@@ -1,0 +1,279 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation para un cluster ECS con EC2, DynamoDB y SNS
+
+Parameters:
+  ECSClusterName:
+    Type: String
+    Default: fondoscluster
+
+Resources:
+
+  UsuariosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Usuarios
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      #ProvisionedThroughput:
+      #  ReadCapacityUnits: 5
+      #  WriteCapacityUnits: 5
+
+  FondosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Fondos
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  TransaccionesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Transacciones
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  NotificacionesTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: fondosnotif.fifo
+      FifoTopic: true
+      ContentBasedDeduplication: true
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: fondoscluster
+
+
+
+
+# Instancias EC2 que se conectara al cluster ECS
+  # VPC
+  FondosVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: fondosvpc
+
+  # Subred para las Instancias EC2 de ECS (en una de las AZs de la VPC predeterminada)
+  ECSSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+          Ref: FondosVPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ] # Selecciona la primera AZ disponible
+      CidrBlock: 10.0.1.0/24 # Rango de IPs para la subred 
+      MapPublicIpOnLaunch: true # true para IPs públicas automáticas
+      Tags:
+        - Key: Name
+          Value: fondosecssubnet
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref FondosVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Route Table
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref FondosVPC
+
+  Route:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref ECSSubnet
+      RouteTableId: !Ref RouteTable
+
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: fondosecsinstancerole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  # Perfil de Instancia para las Instancias EC2
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2InstanceRole
+
+  # Security Group para las Instancias EC2 de ECS
+  ECSInstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: fondosecssg
+      GroupDescription: Security group para las instancias EC2 de ECS
+      VpcId:
+          Ref: FondosVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0 # Limitar esto a algunas IPs para seguridad
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0 # Permite tráfico HTTP (si la aplicación lo necesita)
+      Tags:
+        - Key: Name
+          Value: fondosecssg
+
+
+
+  # Instancia EC2 para el Clúster ECS
+  ECSInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro 
+      ImageId: ami-0f88e80871fd81e91 # AMI adecuada para la región (Amazon Linux 2)
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      SubnetId: !Ref ECSSubnet # Usando la subred creada
+      SecurityGroupIds:
+        - !GetAtt ECSInstanceSecurityGroup.GroupId # Usando el security group creado
+      UserData:
+        Fn::Base64: !Sub |
+              #!/bin/bash
+              echo "Iniciando configuración del agente ECS..." > /var/log/ecs-init.log
+              echo "Nombre del clúster ECS: ${ECSClusterName}" >> /var/log/ecs-init.log
+              echo "Nombre del clúster ECS222: ${ECSCluster}" >> /var/log/ecs-init.log
+              mkdir /etc/ecs >> /var/log/ecs-init.log
+              echo ECS_CLUSTER=${ECSClusterName} >> /etc/ecs/ecs.config
+              echo "Archivo /etc/ecs/ecs.config configurado." >> /var/log/ecs-init.log
+              systemctl start ecs
+              echo "Intentando iniciar el agente ECS..." >> /var/log/ecs-init.log
+              sleep 30
+              systemctl status ecs >> /var/log/ecs-init.log
+              echo "Estado del agente ECS registrado en /var/log/ecs-init.log" >> /var/log/ecs-init.log
+
+
+
+
+
+
+  # Rol de Ejecución de Tareas de ECS (permite a EC2 descargar imágenes y acceder otros servicios)
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: fondosrole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      #ManagedPolicyArns:
+      # - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ECSTaskPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:*
+                  - sns:*
+                Resource: '*' # limitar el acceso a recursos específicos
+
+  # Definición de la Tarea de ECS
+  FondosTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: fondostask
+      RequiresCompatibilities:
+        - EC2
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: bridge #awsvpc required subnet of VPC
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: fondosapi
+          Image: "public.ecr.aws/e8s6v1o2/mypublicimages/clientapp:latest" #"430118855959.dkr.ecr.us-east-1.amazonaws.com/mypublicimages/clientapp:latest" #public.ecr.aws/e8s6v1o2/mypublicimages/clientapp:latest
+          PortMappings:
+            - ContainerPort: 80
+          Environment:
+            - Name: TRANSACTIONS_TABLE_ARN
+              Value: !GetAtt TransaccionesTable.Arn
+            - Name: FUNDS_TABLE_ARN
+              Value: !GetAtt FondosTable.Arn
+            - Name: USERS_TABLE_ARN
+              Value: !GetAtt UsuariosTable.Arn
+            - Name: CLIENT_SNS_URL
+              Value: "arn:aws:sns:us-east-1:430118855959:fondosnotif.fifo" #!GetAtt NotificacionesTopic.Arn
+            - Name: AWS_REGION
+              Value: "us-east-1"
+
+  # Servicio de ECS que ejecuta y mantiene las tasks con EC2
+  FondosService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      LaunchType: EC2
+      TaskDefinition: !Ref FondosTaskDefinition
+      #NetworkConfiguration:
+      #  AwsvpcConfiguration:
+      #    AssignPublicIp: ENABLED
+      #    Subnets:
+      #      - subnet-xxxxxxxx # Reemplaza con tu Subnet ID
+      #    SecurityGroups:
+      #      - sg-xxxxxxxx # Reemplaza con tu Security Group ID
+
+
+Outputs:
+  CLIENTSNSURL:
+    Description: ARN del topic SNS
+    Value: !Ref NotificacionesTopic #es URL si remueve el .Arn
+  ECSClusterName:
+    Description: Nombre del clúster de ECS
+    Value: !Ref ECSCluster
+  USERSTABLEARN:
+    Description: ARN de la tabla usuarios de DynamoDB
+    Value: !Ref UsuariosTable
+  TRANSACTIONSTABLEARN:
+    Description: ARN de la tabla usuarios de DynamoDB
+    Value: !Ref TransaccionesTable
+  FUNDSTABLEARN:
+    Description: ARN de la tabla usuarios de DynamoDB
+    Value: !Ref FondosTable

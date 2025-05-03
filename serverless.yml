@@ -1,0 +1,271 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation para un cluster ECS con Fargate, DynamoDB y SNS
+
+Parameters:
+  ECSClusterName:
+    Type: String
+    Default: fondoscluster
+
+Resources:
+
+  UsuariosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Usuarios
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  FondosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Fondos
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  TransaccionesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Transacciones
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  NotificacionesTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: fondosnotif.fifo
+      FifoTopic: true
+      ContentBasedDeduplication: true
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref ECSClusterName
+
+  FondosVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: fondosvpc
+
+  ECSSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref FondosVPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: fondosecssubnet
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref FondosVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref FondosVPC
+
+  Route:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref ECSSubnet
+      RouteTableId: !Ref RouteTable
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: fondosrole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ECSTaskPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:*
+                  - sns:*
+                Resource: '*'
+
+  FondosTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: fondostask
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: fondosapi
+          Image: "public.ecr.aws/e8s6v1o2/mypublicimages/clientapp:latest"
+          PortMappings:
+            - ContainerPort: 80
+          Environment:
+            - Name: TRANSACTIONS_TABLE_ARN
+              Value: !GetAtt TransaccionesTable.Arn
+            - Name: FUNDS_TABLE_ARN
+              Value: !GetAtt FondosTable.Arn
+            - Name: USERS_TABLE_ARN
+              Value: !GetAtt UsuariosTable.Arn
+            - Name: CLIENT_SNS_URL
+              Value: !Ref NotificacionesTopic
+            - Name: AWS_REGION
+              Value: "us-east-1"
+
+  # Security Group para las Tareas de Fargate
+  ECSInstanceSecurityGroupF:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: fondosecssgf
+      GroupDescription: Security group para las tareas de Fargate
+      VpcId: !Ref FondosVPC
+      Ingress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0 # Permite tráfico HTTP desde cualquier lugar (ajusta según necesidad)
+      Egress:
+        - IpProtocol: -1
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0 # Permite todo el tráfico saliente
+      Tags:
+        - Key: Name
+          Value: fondosecssgf
+
+  # Application Load Balancer
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets:
+        - subnet-08b32a6dc5ee86485 # Reemplaza con tus subredes públicas
+      SecurityGroups:
+        - !GetAtt LoadBalancerSecurityGroup.GroupId
+      Tags:
+        - Key: Name
+          Value: fondos-alb
+
+  # Security Group para el Load Balancer
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: fondos-alb-sg
+      GroupDescription: Security group para el Application Load Balancer
+      VpcId: !Ref FondosVPC
+      Ingress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0 # Permite tráfico HTTP entrante
+      Egress:
+        - IpProtocol: -1
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: fondosalbsg
+
+  # Target Group para las Tareas de Fargate
+  FargateTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref FondosVPC
+      TargetType: ip # Importante para Fargate
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: / # Reemplaza con la ruta de tu health check
+      HealthCheckProtocol: HTTP
+      Matcher:
+        HttpCode: 200-399
+
+  # Listener para el Application Load Balancer
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref FargateTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  FondosService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition: !Ref FondosTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - subnet-08b32a6dc5ee86485 # Reemplaza con tus subredes privadas
+          SecurityGroups:
+            - !GetAtt ECSInstanceSecurityGroupF.GroupId
+          AssignPublicIp: DISABLED # Generalmente recomendado para Fargate
+      LoadBalancers:
+        - TargetGroupArn: !Ref FargateTargetGroup
+          ContainerName: fondosapi # Nombre del contenedor en la definición de la tarea
+          ContainerPort: 80
+
+Outputs:
+  CLIENTSNSURL:
+    Description: ARN del topic SNS
+    Value: !Ref NotificacionesTopic
+  ECSClusterName:
+    Description: Nombre del clúster de ECS
+    Value: !Ref ECSCluster
+  USERSTABLEARN:
+    Description: ARN de la tabla usuarios de DynamoDB
+    Value: !Ref UsuariosTable
+  TRANSACTIONSTABLEARN:
+    Description: ARN de la tabla transacciones de DynamoDB
+    Value: !Ref TransaccionesTable
+  FUNDSTABLEARN:
+    Description: ARN de la tabla fondos de DynamoDB
+    Value: !Ref FondosTable
