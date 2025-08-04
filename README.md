@@ -28,8 +28,10 @@ Ejemplo: Flujo para suscribirse a un fondo
 - Crea la transacción.
 - Envía notificación SNS.
 
-## Instalar dependencias del proyecto en python:
+## Instalar dependencias y ejecutar el proyecto en python:
+```
 pip install -r requirements.txt
+```
 
 - run en local sin Docker, puerto expuesto es 8000
 ```
@@ -43,37 +45,14 @@ Las APIs expuestas están documentadas en el Swagger que provee fastAPI con Open
 - http://127.0.0.1:8000/docs
 
 ## Poblar tabla de fondos con datos de inicializacion dados en el PDF de la prueba
-  id,   nombre,   monto_minimo,   categoria
-- 1 FPV_EL CLIENTE_RECAUDADORA  $75.000 FPV
-- 2 FPV_EL CLIENTE_ECOPETROL  $125.000 FPV
-- 3 DEUDAPRIVADA  $50.000 FIC
-- 4 FDO-ACCIONES  $250.000 FIC
-- 5 FPV_EL CLIENTE_DINAMICA  $100.000 FPV
+  id,  Nombre del fondo,  Monto minimo vinculación $COP,  Categoria del fondo (FPV o FIC)
+- 1 FPV_EL CLIENTE_RECAUDADORA  75.000 FPV
+- 2 FPV_EL CLIENTE_ECOPETROL  125.000 FPV
+- 3 DEUDAPRIVADA  50.000 FIC
+- 4 FDO-ACCIONES  250.000 FIC
+- 5 FPV_EL CLIENTE_DINAMICA  100.000 FPV
 
-## Estructura del Proyecto
-```
-fondos_project/
-│
-├── app/
-│   ├── controllers/
-│   │   └── fondo_controller.py
-│   ├── models/
-│   │   ├── fondo.py
-│   │   ├── usuario.py
-│   │   └── transaccion.py
-│   ├── services/
-│   │   ├── dynamodb_service.py
-│   │   ├── sns_service.py
-│   │   └── validator.py
-│   └── routes/
-│       └── api.py
-│
-├── main.py
-├── requirements.txt
-└── config.py
-```
-
-# Modelo de Datos Simplificado
+## Modelo de Datos Simplificado
 - Usuarios: id, nombre, saldo
 - Fondos: id, nombre, monto_minimo, categoria
 - Transacciones: id, usuario_id, fondo_id, tipo, monto, timestamp
@@ -115,6 +94,29 @@ Transacción
   "monto": 100000,
   "timestamp": "2025-04-30T12:00:00"
 }
+```
+
+## Estructura del Proyecto
+```
+fondos_project/
+│
+├── app/
+│   ├── controllers/
+│   │   └── fondo_controller.py
+│   ├── models/
+│   │   ├── fondo.py
+│   │   ├── usuario.py
+│   │   └── transaccion.py
+│   ├── services/
+│   │   ├── dynamodb_service.py
+│   │   ├── sns_service.py
+│   │   └── validator.py
+│   └── routes/
+│       └── api.py
+│
+├── main.py
+├── requirements.txt
+└── config.py
 ```
 
 ## Ejecutar pruebas unitarias de la funcion lambda con:
