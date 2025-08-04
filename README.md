@@ -1,6 +1,6 @@
-# Microservicio de fondos del Cliente
+# Microservicio de Fondos del Cliente
 
-## Cómo crear IaaC del proyecto en cloud AWS desde CloudFormation:
+## Cómo crear IaC del proyecto en cloud AWS desde CloudFormation:
 - Importar en CloudFormation el serverless.yml , que crea una AWS ECS cluster en modo fargate (sin servidor EC2 explicito), que almacena en DynamoDB (base de datos NoSQL), y envia notificaciones SNS. Ver diagrama de arquitectura Amazon Web Services (AWS) adjunto en este repositorio.
 ---
 El Codigo python se compiló en una imagen de docker subida a un repositorio ECR publico que permite su descarga posterior en nuestra arquitectura AWS:
@@ -10,7 +10,7 @@ El Codigo python se compiló en una imagen de docker subida a un repositorio ECR
 La API esta configurada para accesos desde cualquier origen (CORS) para facilitar las pruebas iniciales, igualmente tampoco requiere API keys o algun otro tipo de autorizacion como tokens que obviamente se requieren para mantener la seguridad del microservicio.
 
 ## Herramientas usadas
-- Framework: FastAPI (por ser liviano, rápido y amigable con OpenAPI/Swagger).
+- Framework: FastAPI (por ser liviano, rápido y documentado con OpenAPI/Swagger).
 - Base de datos: DynamoDB (NoSQL de AWS).
 - Mensajería: AWS SNS (para notificaciones por email/SMS).
 
