@@ -31,10 +31,12 @@ Ejemplo: Flujo para suscribirse a un fondo
 ## Instalar dependencias del proyecto en python:
 pip install -r requirements.txt
 
-- run en local sin docker, puerto es 8000 directamente
-python -m uvicorn main:app --host 0.0.0.0 --port 8000 --log-level debug  
+- run en local sin Docker, puerto expuesto es 8000
+```
+python -m uvicorn main:app --host 0.0.0.0 --port 8000 --log-level debug
+```  
 ó
-- build image solamente pero con network fijada manualmente al run en container, y luego run image en container>
+- build image solamente pero con network fijada manualmente al run en container, y luego run image en container >
 docker build -t appimage . 
 ---
 Las APIs expuestas están documentadas en el Swagger que provee fastAPI con OpenAPI> 
@@ -68,16 +70,19 @@ fondos_project/
 │
 ├── main.py
 ├── requirements.txt
-└── config.py```
+└── config.py
+```
 
 # Modelo de Datos Simplificado
 - Usuarios: id, nombre, saldo
 - Fondos: id, nombre, monto_minimo, categoria
 - Transacciones: id, usuario_id, fondo_id, tipo, monto, timestamp
 
+  Ejemplos en JSON de cada entidad del modelo de datos:
 ---
 Usuario
-``{
+```
+{
   "usuario_id": "123",
   "nombre": "Cliente",
   "saldo": 500000,
@@ -87,25 +92,30 @@ Usuario
       "monto_suscrito": 100000
     }
   ]
-}``
+}
+```
 
 Fondo
-``{
+```
+{
   "fondo_id": 1,
   "nombre": "Fondo A",
   "monto_minimo": 100000,
   "categoria": "FIC"
-}``
+}
+```
 
 Transacción
-``{
+```
+{
   "transaccion_id": "uuid",
   "usuario_id": "123",
   "fondo_id": 1,
   "tipo": "apertura" | "cancelacion",
   "monto": 100000,
   "timestamp": "2025-04-30T12:00:00"
-}``
+}
+```
 
 ## Ejecutar pruebas unitarias de la funcion lambda con:
 - pip install boto3 moto
