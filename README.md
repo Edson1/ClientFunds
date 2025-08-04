@@ -1,7 +1,7 @@
 # Microservicio de Fondos del Cliente
 
 ## Cómo crear IaC del proyecto en cloud AWS desde CloudFormation:
-- Importar en CloudFormation el serverless.yml , que crea una AWS ECS cluster en modo fargate (sin servidor EC2 explicito), que almacena en DynamoDB (base de datos NoSQL), y envia notificaciones SNS. Ver diagrama de arquitectura Amazon Web Services (AWS) adjunto en este repositorio.
+- Importar en CloudFormation el serverless.yml , que crea una AWS ECS cluster en modo fargate (sin servidor EC2 explicito), que almacena en DynamoDB (base de datos NoSQL), y envia notificaciones SNS. Ver diagrama de arquitectura Amazon Web Services (AWS) adjunto en este repositorio (DesignAWSfargate.png).
 ---
 El Codigo python se compiló en una imagen de docker subida a un repositorio ECR publico que permite su descarga posterior en nuestra arquitectura AWS:
 - Image: "public.ecr.aws/e8s6v1o2/mypublicimages/clientapp:latest"
@@ -38,13 +38,13 @@ pip install -r requirements.txt
 python -m uvicorn main:app --host 0.0.0.0 --port 8000 --log-level debug
 ```  
 ó
-- build image solamente pero con network fijada manualmente al run en container, y luego run image en container >
+- build image y luego run docker image en container con network fijada manualmente>
 docker build -t appimage . 
 ---
-Las APIs expuestas están documentadas en el Swagger que provee fastAPI con OpenAPI> 
+Las APIs expuestas están documentadas en el Swagger de OpenAPI que provee FastAPI 
 - http://127.0.0.1:8000/docs
 
-## Poblar tabla de fondos con datos de inicializacion dados en el PDF de la prueba
+## Poblar tabla de fondos con datos de inicializacion dados en el PDF de la prueba adjunto
   id,  Nombre del fondo,  Monto minimo vinculación $COP,  Categoria del fondo (FPV o FIC)
 - 1 FPV_EL CLIENTE_RECAUDADORA  75.000 FPV
 - 2 FPV_EL CLIENTE_ECOPETROL  125.000 FPV
