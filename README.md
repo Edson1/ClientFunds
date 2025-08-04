@@ -1,10 +1,10 @@
 # Microservicio de Fondos del Cliente
 
-## Cómo crear IaC del proyecto en cloud AWS desde CloudFormation:
-- Importar en CloudFormation el serverless.yml , que crea una AWS ECS cluster en modo fargate (sin servidor EC2 explicito), que almacena en DynamoDB (base de datos NoSQL), y envia notificaciones SNS. Ver diagrama de arquitectura Amazon Web Services (AWS) adjunto en este repositorio (DesignAWSfargate.png).
+## Cómo crear IaC del proyecto en AWS desde CloudFormation:
+- Importar en CloudFormation el serverless.yml , que crea una AWS ECS cluster en modo fargate (sin servidor EC2 explicito), que almacena en DynamoDB (base de datos NoSQL), y envia notificaciones SNS. Ver diagrama de arquitectura AWS adjunto en este repositorio (DesignAWSfargate.png).
 ---
-El Codigo python se compiló en una imagen de docker subida a un repositorio ECR publico que permite su descarga posterior en nuestra arquitectura AWS:
-- Image: "public.ecr.aws/e8s6v1o2/mypublicimages/clientapp:latest"
+El Codigo python se compiló en una imagen de Docker, que fue subida a un repositorio ECR público para su uso posterior en la infraestructura AWS:
+- Imagen: "public.ecr.aws/e8s6v1o2/mypublicimages/clientapp:latest"
 
 ## Decisiones técnicas:
 La API esta configurada para accesos desde cualquier origen (CORS) para facilitar las pruebas iniciales, igualmente tampoco requiere API keys o algun otro tipo de autorizacion como tokens que obviamente se requieren para mantener la seguridad del microservicio.
@@ -28,7 +28,7 @@ Ejemplo: Flujo para suscribirse a un fondo
 - Crea la transacción.
 - Envía notificación SNS.
 
-## Instalar dependencias y ejecutar el proyecto en python:
+## Instalar dependencias y ejecutar el proyecto con Python:
 ```
 pip install -r requirements.txt
 ```
@@ -45,6 +45,7 @@ Las APIs expuestas están documentadas en el Swagger de OpenAPI que provee FastA
 - http://127.0.0.1:8000/docs
 
 ## Poblar tabla de fondos con datos de inicializacion dados en el PDF de la prueba adjunto
+
   id,  Nombre del fondo,  Monto minimo vinculación $COP,  Categoria del fondo (FPV o FIC)
 - 1 FPV_EL CLIENTE_RECAUDADORA  75.000 FPV
 - 2 FPV_EL CLIENTE_ECOPETROL  125.000 FPV
