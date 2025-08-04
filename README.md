@@ -52,6 +52,9 @@ Las APIs expuestas están documentadas en el Swagger que provee fastAPI con Open
 - 4 FDO-ACCIONES  250.000 FIC
 - 5 FPV_EL CLIENTE_DINAMICA  100.000 FPV
 
+---
+Crear usuario en tabla Usuarios con: id 1, nombre Cliente, saldo disponible 100.000
+
 ## Modelo de Datos Simplificado
 - Usuarios: id, nombre, saldo
 - Fondos: id, nombre, monto_minimo, categoria
